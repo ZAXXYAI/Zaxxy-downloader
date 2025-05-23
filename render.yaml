@@ -2,6 +2,9 @@ services:
   - type: web
     name: zaxxy-downloader
     env: python
-    buildCommand: ""
+    buildCommand: |
+      apt-get update
+      apt-get install -y ffmpeg
+      pip install -r requirements.txt
     startCommand: python main.py
     plan: free

@@ -56,13 +56,9 @@ def download_worker(task_id, url, is_mp3):
                 'quiet': True,
                 'no_warnings': True,
                 'progress_hooks': [lambda d: update_progress(task_id, d)],
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
                 'cookiefile': cookie_path,
                 'nocheckcertificate': True,
+                # حذف postprocessors لتجنب الاعتماد على ffmpeg
             }
 
         else:
@@ -92,7 +88,11 @@ def download_worker(task_id, url, is_mp3):
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
             ydl.download([url])
 
-        ext = 'mp3' if is_mp3 else 'mp4'
+        # ضبط امتداد الملف الصحيح بعد التحميل
+        if is_mp3:
+            ext = best_audio.get('ext', 'm4a')
+        else:
+            ext = 'mp4'
         actual_filename = f'{title}.{ext}'
         full_path = os.path.join(DOWNLOAD_FOLDER, actual_filename)
 
