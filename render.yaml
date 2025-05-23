@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: zaxxy-downloader
+    env: python
+    buildCommand: ""
+    startCommand: python main.py
+    plan: free

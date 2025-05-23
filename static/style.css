@@ -1,0 +1,189 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo&display=swap');
+
+:root {
+  --primary-color: #005f73;
+  --secondary-color: #0a9396;
+  --accent-color: #94d2bd;
+  --highlight-color: #ee9b00;
+  --background-gradient-start: #001219;
+  --background-gradient-end: #005f73;
+  --text-primary: #e0f0f6;
+  --text-secondary: #94a1b2;
+  --button-text: #001219;
+  --input-bg: rgba(255, 255, 255, 0.12);
+  --input-bg-focus: rgba(255, 255, 255, 0.25);
+}
+
+html, body {
+  font-family: 'Cairo', sans-serif;
+  background: linear-gradient(135deg, var(--background-gradient-start), var(--background-gradient-end));
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  user-select: none;
+}
+
+h2 {
+  color: var(--highlight-color);
+  margin-bottom: 20px;
+  font-weight: 900;
+  font-size: 2.6em;
+  text-shadow: 0 0 12px var(--highlight-color);
+  letter-spacing: 1.2px;
+}
+
+p {
+  color: var(--text-secondary);
+  margin-bottom: 35px;
+  font-size: 1.3em;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+}
+
+form {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 30px 35px;
+  border-radius: 16px;
+  max-width: 420px;
+  margin: auto;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  transition: box-shadow 0.3s ease;
+}
+form:hover {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+input[type="text"], select {
+  width: 100%;
+  padding: 15px 18px;
+  margin: 15px 0;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.15em;
+  box-sizing: border-box;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  transition: background-color 0.35s ease, box-shadow 0.35s ease;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.15);
+}
+input[type="text"]::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+input[type="text"]:focus, select:focus {
+  background: var(--input-bg-focus);
+  outline: none;
+  box-shadow: 0 0 10px var(--highlight-color);
+}
+
+select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg width='24' height='24' fill='%2394d2bd' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 15px center;
+  background-size: 16px 16px;
+  padding-right: 45px;
+}
+
+button {
+  width: 100%;
+  padding: 16px 0;
+  background: var(--highlight-color);
+  border: none;
+  border-radius: 12px;
+  font-size: 1.25em;
+  color: var(--button-text);
+  cursor: pointer;
+  font-weight: 800;
+  box-shadow: 0 0 20px var(--highlight-color);
+  transition: background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+  user-select: none;
+}
+button:hover, button:focus {
+  background: #cc7a00;
+  color: #fff;
+  box-shadow: 0 0 30px #cc7a00;
+  outline: none;
+}
+
+#loading {
+  margin-top: 28px;
+  font-size: 1.25em;
+  color: var(--highlight-color);
+  display: none;
+  font-weight: 700;
+  text-shadow: 0 0 10px var(--highlight-color);
+}
+
+#progress-bar {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  overflow: hidden;
+  margin: 22px 0 14px 0;
+  height: 26px;
+  display: none;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.4);
+}
+
+#progress-bar-inner {
+  height: 100%;
+  background-color: var(--highlight-color);
+  width: 0%;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 14px var(--highlight-color);
+  border-radius: 14px 0 0 14px;
+}
+
+footer {
+  margin-top: 60px;
+  color: #8a9ba8;
+  font-size: 1em;
+  user-select: none;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 480px), (max-height: 700px) {
+  html, body {
+    overflow: hidden;
+    padding: 20px 10px;
+    display: block;
+  }
+
+  form {
+    max-width: 100%;
+    padding: 25px 20px;
+  }
+
+  h2 {
+    font-size: 1.9em;
+  }
+
+  p {
+    font-size: 1.05em;
+  }
+
+  button {
+    font-size: 1.1em;
+    padding: 14px 0;
+  }
+
+  footer {
+    font-size: 0.85em;
+    margin-top: 30px;
+  }
+
+  #loading {
+    font-size: 1.1em;
+  }
+}
