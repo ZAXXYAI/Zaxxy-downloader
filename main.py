@@ -92,12 +92,10 @@ def download_worker(task_id, url, is_mp3):
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
             ydl.download([url])
 
-        # تحديد الامتداد الحقيقي بناءً على الملفات الموجودة
         ext = 'mp3' if is_mp3 else 'mp4'
         actual_filename = f'{title}.{ext}'
         full_path = os.path.join(DOWNLOAD_FOLDER, actual_filename)
 
-        # تأكيد وجود الملف
         if not os.path.exists(full_path):
             raise Exception(f'الملف {actual_filename} لم يتم العثور عليه بعد التحميل.')
 
@@ -138,4 +136,5 @@ def download_file(filename):
     return send_from_directory(DOWNLOAD_FOLDER, filename, as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
