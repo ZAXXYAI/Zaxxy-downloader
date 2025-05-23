@@ -1,18 +1,23 @@
 import os
 import re
 import uuid
-from flask import Flask, render_template, request, jsonify, send_from_directory
-from threading import Thread
+from flask import Flask, render_template, request, jsonify, send_from_directory, safe_join, abort
+from threading import Thread, Lock
 import yt_dlp
+import logging
 
 app = Flask(__name__)
-DOWNLOAD_FOLDER = 'download_temp'
+
+# غيرت هنا مسار مجلد التنزيل من /tmp/download_temp إلى /temp/download_temp
+DOWNLOAD_FOLDER = '/temp/download_temp'
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 progress_data = {}
+progress_lock = Lock()
+
+logging.basicConfig(level=logging.DEBUG)
 
 def slugify(value):
-    # إزالة الرموز التعبيرية وكل الأحرف غير الأبجدية الرقمية والمسافات والشرطات
     value = re.sub(r'[^\w\s-]', '', value, flags=re.UNICODE)
     return value.strip().replace(' ', '_')
 
@@ -21,10 +26,17 @@ def update_progress(task_id, d):
         total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate') or 1
         downloaded_bytes = d.get('downloaded_bytes', 0)
         percentage = (downloaded_bytes / total_bytes) * 100
-        progress_data[task_id]['progress'] = percentage
+        with progress_lock:
+            if task_id in progress_data:
+                progress_data[task_id]['progress'] = percentage
+                logging.debug(f"Task {task_id}: progress updated to {percentage:.2f}%")
 
 def download_worker(task_id, url, is_mp3):
     try:
+        logging.debug(f"[DEBUG] Using download folder: {DOWNLOAD_FOLDER}")
+        logging.debug(f"[DEBUG] Folder exists: {os.path.exists(DOWNLOAD_FOLDER)}")
+        logging.debug(f"[DEBUG] Folder writable: {os.access(DOWNLOAD_FOLDER, os.W_OK)}")
+
         cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
         if not os.path.isfile(cookie_path):
             raise FileNotFoundError('ملف الكوكيز cookies.txt غير موجود. الرجاء التأكد من وضعه في مجلد التطبيق.')
@@ -58,7 +70,6 @@ def download_worker(task_id, url, is_mp3):
                 'progress_hooks': [lambda d: update_progress(task_id, d)],
                 'cookiefile': cookie_path,
                 'nocheckcertificate': True,
-                # حذف postprocessors لتجنب الاعتماد على ffmpeg
             }
 
         else:
@@ -66,13 +77,16 @@ def download_worker(task_id, url, is_mp3):
             if video_audio_formats:
                 best_format = max(video_audio_formats, key=lambda f: f.get('height') or 0)
                 format_id = best_format['format_id']
+                ext = best_format.get('ext', 'mp4')
             else:
                 best_video = max([f for f in formats if f.get('vcodec') != 'none' and f.get('acodec') == 'none'], key=lambda f: f.get('height') or 0, default=None)
                 best_audio = max([f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') == 'none'], key=lambda f: f.get('abr') or 0, default=None)
                 if best_video and best_audio:
                     format_id = f"{best_video['format_id']}+{best_audio['format_id']}"
+                    ext = best_video.get('ext', 'mp4')
                 else:
                     format_id = 'best'
+                    ext = info.get('ext', 'mp4')
 
             ydl_opts_download = {
                 'format': format_id,
@@ -88,23 +102,26 @@ def download_worker(task_id, url, is_mp3):
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
             ydl.download([url])
 
-        # ضبط امتداد الملف الصحيح بعد التحميل
         if is_mp3:
             ext = best_audio.get('ext', 'm4a')
-        else:
-            ext = 'mp4'
+
         actual_filename = f'{title}.{ext}'
         full_path = os.path.join(DOWNLOAD_FOLDER, actual_filename)
 
         if not os.path.exists(full_path):
             raise Exception(f'الملف {actual_filename} لم يتم العثور عليه بعد التحميل.')
 
-        progress_data[task_id]['download_url'] = f'/download/{actual_filename}'
-        progress_data[task_id]['progress'] = 100.0
+        with progress_lock:
+            progress_data[task_id]['download_url'] = f'/download/{actual_filename}'
+            progress_data[task_id]['progress'] = 100.0
+
+        logging.debug(f"Task {task_id}: Download complete: {actual_filename}")
 
     except Exception as e:
-        progress_data[task_id]['error'] = str(e)
-        progress_data[task_id]['progress'] = 0.0
+        with progress_lock:
+            progress_data[task_id]['error'] = str(e)
+            progress_data[task_id]['progress'] = 0.0
+        logging.error(f"Task {task_id}: Error - {e}")
 
 @app.route('/')
 def index():
@@ -118,7 +135,8 @@ def download():
     is_mp3 = format_type == 'mp3'
 
     task_id = str(uuid.uuid4())
-    progress_data[task_id] = {'progress': 0.0, 'download_url': None, 'error': None}
+    with progress_lock:
+        progress_data[task_id] = {'progress': 0.0, 'download_url': None, 'error': None}
 
     thread = Thread(target=download_worker, args=(task_id, url, is_mp3))
     thread.start()
@@ -127,12 +145,16 @@ def download():
 
 @app.route('/progress/<task_id>')
 def get_progress(task_id):
-    if task_id not in progress_data:
-        return jsonify({'error': 'معرف المهمة غير صالح'})
-    return jsonify(progress_data[task_id])
+    with progress_lock:
+        if task_id not in progress_data:
+            return jsonify({'error': 'معرف المهمة غير صالح'})
+        return jsonify(progress_data[task_id])
 
-@app.route('/download/<filename>')
+@app.route('/download/<path:filename>')
 def download_file(filename):
+    safe_path = safe_join(DOWNLOAD_FOLDER, filename)
+    if not safe_path or not os.path.isfile(safe_path):
+        abort(404)
     return send_from_directory(DOWNLOAD_FOLDER, filename, as_attachment=True)
 
 if __name__ == '__main__':
