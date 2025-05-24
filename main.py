@@ -27,15 +27,7 @@ logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
 # قائمة البروكسيات
 PROXIES = [
-    "http://nliaeayc:rbwz1px958d8@198.23.239.134:6540",
-    "http://nliaeayc:rbwz1px958d8@207.244.217.165:6712",
-    "http://nliaeayc:rbwz1px958d8@107.172.163.27:6543",
-    "http://nliaeayc:rbwz1px958d8@161.123.152.115:6360",
-    "http://nliaeayc:rbwz1px958d8@23.94.138.75:6349",
-    "http://nliaeayc:rbwz1px958d8@216.10.27.159:6837",
-    "http://nliaeayc:rbwz1px958d8@136.0.207.84:6661",
-    "http://nliaeayc:rbwz1px958d8@64.64.118.149:6732",
-    "http://nliaeayc:rbwz1px958d8@142.147.128.93:6593",
+    
     "http://nliaeayc:rbwz1px958d8@154.36.110.199:6853",
 ]
 
