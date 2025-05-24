@@ -13,7 +13,9 @@ from waitress import serve
 
 # إعداد التطبيق
 app = Flask(__name__)
-
+@app.route('/googlef3fcfab0f068f8a8.html')
+def google_verification():
+    return send_from_directory('static', 'googlef3fcfab0f068f8a8.html')
 # مجلد التحميل المؤقت
 DOWNLOAD_FOLDER = '/tmp/download_temp' if platform.system() != 'Windows' else os.path.join(os.getcwd(), 'downloads_temp')
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
