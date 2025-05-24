@@ -1,6 +1,8 @@
 import os
 import re
 import uuid
+import urllib.request
+import tarfile
 from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 from werkzeug.utils import safe_join
 from threading import Thread, Lock
@@ -18,8 +20,32 @@ progress_lock = Lock()
 
 logging.basicConfig(level=logging.DEBUG)
 
-# دمج مسار ffmpeg المحلي ضمن PATH ليتم استخدامه من yt-dlp
-ffmpeg_local_path = os.path.abspath("ffmpeg_bin/ffmpeg")
+# تحميل ffmpeg تلقائيًا إذا لم يكن موجودًا
+def ensure_ffmpeg():
+    ffmpeg_path = os.path.abspath("ffmpeg_bin/ffmpeg")
+    if not os.path.exists(ffmpeg_path):
+        logging.info("ffmpeg غير موجود، جاري تحميله...")
+        os.makedirs("ffmpeg_bin", exist_ok=True)
+        url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+        tar_path = "ffmpeg.tar.xz"
+        urllib.request.urlretrieve(url, tar_path)
+        with tarfile.open(tar_path) as tar:
+            for member in tar.getmembers():
+                if member.name.endswith("ffmpeg") and "ffmpeg" in member.name:
+                    member.name = os.path.basename(member.name)
+                    tar.extract(member, "ffmpeg_bin")
+                    break
+        os.chmod(ffmpeg_path, 0o755)
+        os.remove(tar_path)
+        logging.info("ffmpeg تم تحميله بنجاح.")
+    else:
+        logging.info("ffmpeg موجود مسبقًا.")
+    return ffmpeg_path
+
+# تشغيل الفحص والتحميل إن لزم
+ffmpeg_local_path = ensure_ffmpeg()
+
+# إضافة ffmpeg إلى PATH
 os.environ["PATH"] = f"{os.path.dirname(ffmpeg_local_path)}:{os.environ.get('PATH', '')}"
 
 def slugify(value):
@@ -60,7 +86,6 @@ def download_worker(task_id, url, is_mp3):
         formats = info.get('formats', [])
 
         if is_mp3:
-            # إعدادات تنزيل وتحويل إلى mp3 باستخدام ffmpeg المحلي
             ydl_opts_download = {
                 'format': 'bestaudio/best',
                 'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{title}.%(ext)s'),
@@ -70,6 +95,7 @@ def download_worker(task_id, url, is_mp3):
                 'progress_hooks': [lambda d: update_progress(task_id, d)],
                 'cookiefile': cookie_path,
                 'nocheckcertificate': True,
+                'ffmpeg_location': ffmpeg_local_path,
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
@@ -102,6 +128,7 @@ def download_worker(task_id, url, is_mp3):
                 'progress_hooks': [lambda d: update_progress(task_id, d)],
                 'cookiefile': cookie_path,
                 'nocheckcertificate': True,
+                'ffmpeg_location': ffmpeg_local_path,
             }
 
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
