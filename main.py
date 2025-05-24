@@ -13,7 +13,6 @@ from waitress import serve
 
 app = Flask(__name__)
 
-# مسار مجلد التنزيل
 DOWNLOAD_FOLDER = '/tmp/download_temp' if platform.system() != 'Windows' else os.path.join(os.getcwd(), 'downloads_temp')
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
@@ -35,7 +34,6 @@ def ensure_ffmpeg():
         urllib.request.urlretrieve(url, tar_path)
         with tarfile.open(tar_path) as tar:
             for member in tar.getmembers():
-                # تعديل ليغطي حالة Windows و Linux بشكل صحيح
                 if member.name.endswith(ffmpeg_filename) or (platform.system() != "Windows" and member.name.endswith("ffmpeg")):
                     member.name = os.path.basename(member.name)
                     tar.extract(member, ffmpeg_dir)
@@ -48,10 +46,7 @@ def ensure_ffmpeg():
         logging.info("FFmpeg موجود مسبقًا.")
     return ffmpeg_path
 
-# تحميل ffmpeg إذا لم يكن موجودًا
 ffmpeg_local_path = ensure_ffmpeg()
-
-# إضافة ffmpeg إلى PATH
 os.environ["PATH"] = f"{os.path.dirname(ffmpeg_local_path)}{os.pathsep}{os.environ.get('PATH', '')}"
 
 def slugify(value):
@@ -78,11 +73,14 @@ def download_worker(task_id, url, is_mp3):
         if not os.path.isfile(cookie_path):
             raise FileNotFoundError('ملف cookies.txt غير موجود. تأكد من وجوده في مجلد المشروع.')
 
+        proxy_url = "http://nliaeayc:rbwz1px958d8@198.23.239.134:6540"
+
         ydl_opts_info = {
             'quiet': True,
             'no_warnings': True,
             'cookiefile': cookie_path,
-            'nocheckcertificate': True
+            'nocheckcertificate': True,
+            'proxy': proxy_url
         }
 
         with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
@@ -102,6 +100,7 @@ def download_worker(task_id, url, is_mp3):
                 'cookiefile': cookie_path,
                 'nocheckcertificate': True,
                 'ffmpeg_location': ffmpeg_local_path,
+                'proxy': proxy_url,
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
@@ -135,6 +134,7 @@ def download_worker(task_id, url, is_mp3):
                 'cookiefile': cookie_path,
                 'nocheckcertificate': True,
                 'ffmpeg_location': ffmpeg_local_path,
+                'proxy': proxy_url
             }
 
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
