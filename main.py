@@ -156,6 +156,7 @@ def download_worker(task_id, url, is_mp3):
             progress_data[task_id]['error'] = str(e)
             progress_data[task_id]['progress'] = 0.0
         logging.error(f"[مهمة {task_id}] خطأ أثناء التحميل: {e}")
+        print(f"[خطأ المهمة {task_id}]: {e}")
 
 @app.route('/')
 def index():
