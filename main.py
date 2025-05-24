@@ -3,6 +3,7 @@ import re
 import uuid
 import urllib.request
 import tarfile
+import platform
 from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 from werkzeug.utils import safe_join
 from threading import Thread, Lock
@@ -12,7 +13,7 @@ import logging
 app = Flask(__name__)
 
 # مسار مجلد التنزيل
-DOWNLOAD_FOLDER = '/tmp/download_temp'
+DOWNLOAD_FOLDER = '/tmp/download_temp' if platform.system() != 'Windows' else os.path.join(os.getcwd(), 'download_temp')
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 progress_data = {}
@@ -20,33 +21,36 @@ progress_lock = Lock()
 
 logging.basicConfig(level=logging.DEBUG)
 
-# تحميل ffmpeg تلقائيًا إذا لم يكن موجودًا
 def ensure_ffmpeg():
-    ffmpeg_path = os.path.abspath("ffmpeg_bin/ffmpeg")
+    ffmpeg_filename = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+    ffmpeg_dir = "ffmpeg_bin"
+    ffmpeg_path = os.path.abspath(os.path.join(ffmpeg_dir, ffmpeg_filename))
+    
     if not os.path.exists(ffmpeg_path):
         logging.info("ffmpeg غير موجود، جاري تحميله...")
-        os.makedirs("ffmpeg_bin", exist_ok=True)
+        os.makedirs(ffmpeg_dir, exist_ok=True)
         url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
         tar_path = "ffmpeg.tar.xz"
         urllib.request.urlretrieve(url, tar_path)
         with tarfile.open(tar_path) as tar:
             for member in tar.getmembers():
-                if member.name.endswith("ffmpeg") and "ffmpeg" in member.name:
+                if member.name.endswith(ffmpeg_filename) or (platform.system() != "Windows" and member.name.endswith("ffmpeg")):
                     member.name = os.path.basename(member.name)
-                    tar.extract(member, "ffmpeg_bin")
+                    tar.extract(member, ffmpeg_dir)
                     break
-        os.chmod(ffmpeg_path, 0o755)
+        if platform.system() != "Windows":
+            os.chmod(ffmpeg_path, 0o755)
         os.remove(tar_path)
         logging.info("ffmpeg تم تحميله بنجاح.")
     else:
         logging.info("ffmpeg موجود مسبقًا.")
     return ffmpeg_path
 
-# تشغيل الفحص والتحميل إن لزم
+# تحميل ffmpeg إذا لم يكن موجودًا
 ffmpeg_local_path = ensure_ffmpeg()
 
 # إضافة ffmpeg إلى PATH
-os.environ["PATH"] = f"{os.path.dirname(ffmpeg_local_path)}:{os.environ.get('PATH', '')}"
+os.environ["PATH"] = f"{os.path.dirname(ffmpeg_local_path)}{os.pathsep}{os.environ.get('PATH', '')}"
 
 def slugify(value):
     value = re.sub(r'[^\w\s-]', '', value, flags=re.UNICODE)
