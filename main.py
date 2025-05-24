@@ -114,11 +114,15 @@ def download_worker(task_id, url, is_mp3):
 
         ext, format_id = ('mp3', 'bestaudio/best') if is_mp3 else ('mp4', 'best')
         if not is_mp3:
-            video_audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') != 'none']
-            if video_audio_formats:
-                best_format = max(video_audio_formats, key=lambda f: f.get('height') or 0)
-                format_id = best_format['format_id']
-                ext = best_format.get('ext', 'mp4')
+            if 'youtube.com' in url or 'youtu.be' in url:
+                format_id = 'bestvideo+bestaudio/best'
+                ext = 'mp4'
+            else:
+                video_audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') != 'none']
+                if video_audio_formats:
+                    best_format = max(video_audio_formats, key=lambda f: f.get('height') or 0)
+                    format_id = best_format['format_id']
+                    ext = best_format.get('ext', 'mp4')
 
         download_success = False
         for proxy_url in PROXIES:
