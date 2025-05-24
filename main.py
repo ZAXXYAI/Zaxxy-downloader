@@ -1,9 +1,6 @@
 import os
 import re
 import uuid
-import urllib.request
-import tarfile
-import platform
 from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 from werkzeug.utils import safe_join
 from threading import Thread, Lock
@@ -13,8 +10,8 @@ from waitress import serve
 
 app = Flask(__name__)
 
-# مسار مجلد التنزيل
-DOWNLOAD_FOLDER = '/tmp/download_temp' if platform.system() != 'Windows' else os.path.join(os.getcwd(), 'download_temp')
+# مجلد التنزيل مؤقت داخل /tmp
+DOWNLOAD_FOLDER = '/tmp/download_temp'
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 progress_data = {}
@@ -22,36 +19,10 @@ progress_lock = Lock()
 
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
-def ensure_ffmpeg():
-    ffmpeg_filename = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
-    ffmpeg_dir = "ffmpeg_bin"
-    ffmpeg_path = os.path.abspath(os.path.join(ffmpeg_dir, ffmpeg_filename))
-    
-    if not os.path.exists(ffmpeg_path):
-        logging.info("FFmpeg غير موجود. بدء التحميل...")
-        os.makedirs(ffmpeg_dir, exist_ok=True)
-        url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
-        tar_path = "ffmpeg.tar.xz"
-        urllib.request.urlretrieve(url, tar_path)
-        with tarfile.open(tar_path) as tar:
-            for member in tar.getmembers():
-                if member.name.endswith(ffmpeg_filename) or (platform.system() != "Windows" and member.name.endswith("ffmpeg")):
-                    member.name = os.path.basename(member.name)
-                    tar.extract(member, ffmpeg_dir)
-                    break
-        if platform.system() != "Windows":
-            os.chmod(ffmpeg_path, 0o755)
-        os.remove(tar_path)
-        logging.info("FFmpeg تم تحميله بنجاح.")
-    else:
-        logging.info("FFmpeg موجود مسبقًا.")
-    return ffmpeg_path
+# لا ننزل ffmpeg داخل Fly، نفترض ffmpeg موجود في البيئة
+# لو تحتاج ffmpeg مختلف، الأفضل تجهز Dockerfile يحتوي ffmpeg جاهز
 
-# تحميل ffmpeg إذا لم يكن موجودًا
-ffmpeg_local_path = ensure_ffmpeg()
-
-# إضافة ffmpeg إلى PATH
-os.environ["PATH"] = f"{os.path.dirname(ffmpeg_local_path)}{os.pathsep}{os.environ.get('PATH', '')}"
+ffmpeg_local_path = None  # اتركه None لليتولى yt_dlp البحث عن ffmpeg
 
 def slugify(value):
     value = re.sub(r'[^\w\s-]', '', value, flags=re.UNICODE)
@@ -70,8 +41,6 @@ def update_progress(task_id, d):
 def download_worker(task_id, url, is_mp3):
     try:
         logging.debug(f"[مهمة {task_id}] مجلد التنزيل: {DOWNLOAD_FOLDER}")
-        logging.debug(f"[مهمة {task_id}] المجلد موجود: {os.path.exists(DOWNLOAD_FOLDER)}")
-        logging.debug(f"[مهمة {task_id}] المجلد قابل للكتابة: {os.access(DOWNLOAD_FOLDER, os.W_OK)}")
 
         cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
         if not os.path.isfile(cookie_path):
@@ -100,7 +69,7 @@ def download_worker(task_id, url, is_mp3):
                 'progress_hooks': [lambda d: update_progress(task_id, d)],
                 'cookiefile': cookie_path,
                 'nocheckcertificate': True,
-                'ffmpeg_location': ffmpeg_local_path,
+                # 'ffmpeg_location': ffmpeg_local_path,  # اتركها معطلة
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
@@ -133,7 +102,7 @@ def download_worker(task_id, url, is_mp3):
                 'progress_hooks': [lambda d: update_progress(task_id, d)],
                 'cookiefile': cookie_path,
                 'nocheckcertificate': True,
-                'ffmpeg_location': ffmpeg_local_path,
+                # 'ffmpeg_location': ffmpeg_local_path,  # معطلة
             }
 
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
@@ -156,7 +125,6 @@ def download_worker(task_id, url, is_mp3):
             progress_data[task_id]['error'] = str(e)
             progress_data[task_id]['progress'] = 0.0
         logging.error(f"[مهمة {task_id}] خطأ أثناء التحميل: {e}")
-        print(f"[خطأ المهمة {task_id}]: {e}")
 
 @app.route('/')
 def index():
@@ -193,5 +161,5 @@ def download_file(filename):
     return send_from_directory(DOWNLOAD_FOLDER, filename, as_attachment=True)
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 8080))  # Fly يستخدم عادة 8080 أو PORT من البيئة
     serve(app, host='0.0.0.0', port=port)
