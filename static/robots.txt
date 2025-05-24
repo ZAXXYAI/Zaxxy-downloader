@@ -1,15 +1,6 @@
 User-agent: *
 Allow: /
-
-# منع محركات البحث من الوصول إلى مسارات إدارية أو حساسة
 Disallow: /admin/
 Disallow: /api/
 Disallow: /progress/
-
-# السماح الكامل بكل الصفحات العامة
-Allow: /$
-
-# تحديد مكان خريطة الموقع لتحسين الأرشفة
-Sitemap: User-agent: *
-Allow: /
 Sitemap: https://zaxxy-downloader-3.onrender.com/sitemap.xml
