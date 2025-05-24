@@ -1,6 +1,7 @@
 User-agent: *
-Allow: /
 Disallow: /admin/
 Disallow: /api/
 Disallow: /progress/
+Allow: /
+
 Sitemap: https://zaxxy-downloader-3.onrender.com/sitemap.xml
