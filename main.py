@@ -13,6 +13,14 @@ from waitress import serve
 
 # إعداد التطبيق
 app = Flask(__name__)
+
+@app.route('/robots.txt')
+def robots():
+    return send_from_directory('static', 'robots.txt')
+@app.route('/sitemap.xml')
+def sitemap():
+    return send_from_directory('static', 'sitemap.xml')
+
 @app.route('/googlef3fcfab0f068f8a8.html')
 def google_verification():
     return send_from_directory('static', 'googlef3fcfab0f068f8a8.html')
