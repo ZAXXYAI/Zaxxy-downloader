@@ -31,27 +31,28 @@ def ensure_ffmpeg():
     ffmpeg_dir = "ffmpeg_bin"
     ffmpeg_path = os.path.abspath(os.path.join(ffmpeg_dir, ffmpeg_filename))
 
-    if not os.path.exists(ffmpeg_path):  
-        logging.info("FFmpeg غير موجود. سيتم تحميله...")  
-        os.makedirs(ffmpeg_dir, exist_ok=True)  
-        url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"  
-        tar_path = "ffmpeg.tar.xz"  
-        urllib.request.urlretrieve(url, tar_path)  
+    if not os.path.exists(ffmpeg_path):
+        logging.info("FFmpeg غير موجود. سيتم تحميله...")
+        os.makedirs(ffmpeg_dir, exist_ok=True)
+        url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+        tar_path = "ffmpeg.tar.xz"
+        urllib.request.urlretrieve(url, tar_path)
 
-        with tarfile.open(tar_path) as tar:  
-            for member in tar.getmembers():  
-                if member.name.endswith(ffmpeg_filename) or (platform.system() != "Windows" and member.name.endswith("ffmpeg")):  
-                    member.name = os.path.basename(member.name)  
-                    tar.extract(member, ffmpeg_dir)  
-                    break  
+        with tarfile.open(tar_path) as tar:
+            for member in tar.getmembers():
+                if member.name.endswith(ffmpeg_filename) or (platform.system() != "Windows" and member.name.endswith("ffmpeg")):
+                    member.name = os.path.basename(member.name)
+                    tar.extract(member, ffmpeg_dir)
+                    break
 
-        if platform.system() != "Windows":  
-            os.chmod(ffmpeg_path, 0o755)  
+        if platform.system() != "Windows":
+            os.chmod(ffmpeg_path, 0o755)
 
-        os.remove(tar_path)  
-        logging.info("تم تحميل FFmpeg بنجاح.")  
-    else:  
-        logging.info("FFmpeg موجود بالفعل.")  
+        os.remove(tar_path)
+        logging.info("تم تحميل FFmpeg بنجاح.")
+    else:
+        logging.info("FFmpeg موجود بالفعل.")
+    
     return ffmpeg_path
 
 # تهيئة ffmpeg
@@ -83,9 +84,30 @@ def download_worker(task_id, url, is_mp3):
         if not os.path.isfile(cookie_path):
             raise FileNotFoundError('ملف cookies.txt غير موجود.')
 
-        ydl_opts = {
-            'format': 'bestaudio/best' if is_mp3 else 'best',
-            'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
+        ydl_opts_info = {
+            'quiet': True,
+            'no_warnings': True,
+            'cookiefile': cookie_path,
+            'nocheckcertificate': True
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        title = slugify(info.get('title', f'video_{uuid.uuid4()}'))
+        formats = info.get('formats', [])
+
+        ext, format_id = ('mp3', 'bestaudio/best') if is_mp3 else ('mp4', 'best')
+        if not is_mp3:
+            video_audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') != 'none']
+            if video_audio_formats:
+                best_format = max(video_audio_formats, key=lambda f: f.get('height') or 0)
+                format_id = best_format['format_id']
+                ext = best_format.get('ext', 'mp4')
+
+        ydl_opts_download = {
+            'format': format_id,
+            'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{title}.%(ext)s'),
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
@@ -96,20 +118,17 @@ def download_worker(task_id, url, is_mp3):
         }
 
         if is_mp3:
-            ydl_opts['postprocessors'] = [{
+            ydl_opts_download['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }]
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+        with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
+            ydl.download([url])
 
-        title = slugify(info.get('title', f'video_{uuid.uuid4()}'))
-        ext = 'mp3' if is_mp3 else info.get('ext', 'mp4')
         actual_filename = f'{title}.{ext}'
         full_path = os.path.join(DOWNLOAD_FOLDER, actual_filename)
-
         if not os.path.exists(full_path):
             raise Exception(f'الملف {actual_filename} غير موجود بعد التحميل.')
 
@@ -143,6 +162,7 @@ def download():
         progress_data[task_id] = {'progress': 0.0, 'download_url': None, 'error': None}
 
     Thread(target=download_worker, args=(task_id, url, is_mp3)).start()
+
     return jsonify({'task_id': task_id})
 
 # جلب حالة التقدم
