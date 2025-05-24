@@ -115,7 +115,7 @@ def download_worker(task_id, url, is_mp3):
         ext, format_id = ('mp3', 'bestaudio/best') if is_mp3 else ('mp4', 'best')
         if not is_mp3:
             if 'youtube.com' in url or 'youtu.be' in url:
-                format_id = 'bestvideo+bestaudio/best'
+                format_id = '22'
                 ext = 'mp4'
             else:
                 video_audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') != 'none']
