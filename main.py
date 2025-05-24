@@ -1,21 +1,26 @@
 import os
 import re
 import uuid
-from flask import Flask, render_template, request, jsonify, send_from_directory, safe_join, abort
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort
+from werkzeug.utils import safe_join
 from threading import Thread, Lock
 import yt_dlp
 import logging
 
 app = Flask(__name__)
 
-# غيرت هنا مسار مجلد التنزيل من /tmp/download_temp إلى /temp/download_temp
-DOWNLOAD_FOLDER = '/temp/download_temp'
+# مسار مجلد التنزيل
+DOWNLOAD_FOLDER = '/tmp/download_temp'
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 progress_data = {}
 progress_lock = Lock()
 
 logging.basicConfig(level=logging.DEBUG)
+
+# دمج مسار ffmpeg المحلي ضمن PATH ليتم استخدامه من yt-dlp
+ffmpeg_local_path = os.path.abspath("ffmpeg_bin/ffmpeg")
+os.environ["PATH"] = f"{os.path.dirname(ffmpeg_local_path)}:{os.environ.get('PATH', '')}"
 
 def slugify(value):
     value = re.sub(r'[^\w\s-]', '', value, flags=re.UNICODE)
@@ -55,14 +60,9 @@ def download_worker(task_id, url, is_mp3):
         formats = info.get('formats', [])
 
         if is_mp3:
-            audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') == 'none']
-            if not audio_formats:
-                raise Exception('لا توجد صيغة صوت متاحة لهذا الفيديو.')
-            best_audio = max(audio_formats, key=lambda f: f.get('abr') or 0)
-            format_id = best_audio['format_id']
-
+            # إعدادات تنزيل وتحويل إلى mp3 باستخدام ffmpeg المحلي
             ydl_opts_download = {
-                'format': format_id,
+                'format': 'bestaudio/best',
                 'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{title}.%(ext)s'),
                 'noplaylist': True,
                 'quiet': True,
@@ -70,8 +70,13 @@ def download_worker(task_id, url, is_mp3):
                 'progress_hooks': [lambda d: update_progress(task_id, d)],
                 'cookiefile': cookie_path,
                 'nocheckcertificate': True,
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
             }
-
+            ext = 'mp3'
         else:
             video_audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') != 'none']
             if video_audio_formats:
@@ -101,9 +106,6 @@ def download_worker(task_id, url, is_mp3):
 
         with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
             ydl.download([url])
-
-        if is_mp3:
-            ext = best_audio.get('ext', 'm4a')
 
         actual_filename = f'{title}.{ext}'
         full_path = os.path.join(DOWNLOAD_FOLDER, actual_filename)
