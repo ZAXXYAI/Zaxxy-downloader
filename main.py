@@ -35,6 +35,7 @@ def ensure_ffmpeg():
         urllib.request.urlretrieve(url, tar_path)
         with tarfile.open(tar_path) as tar:
             for member in tar.getmembers():
+                # تعديل ليغطي حالة Windows و Linux بشكل صحيح
                 if member.name.endswith(ffmpeg_filename) or (platform.system() != "Windows" and member.name.endswith("ffmpeg")):
                     member.name = os.path.basename(member.name)
                     tar.extract(member, ffmpeg_dir)
