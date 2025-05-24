@@ -11,35 +11,16 @@ from werkzeug.utils import safe_join
 import yt_dlp
 from waitress import serve
 
-# إعداد التطبيق
 app = Flask(__name__)
 
-# مجلد التحميل المؤقت
 DOWNLOAD_FOLDER = '/tmp/download_temp' if platform.system() != 'Windows' else os.path.join(os.getcwd(), 'downloads_temp')
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-# بيانات تقدم التحميل
 progress_data = {}
 progress_lock = Lock()
 
-# إعداد السجل (اللوق)
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
-# قائمة البروكسيات
-PROXIES = [
-    "http://nliaeayc:rbwz1px958d8@198.23.239.134:6540",
-    "http://nliaeayc:rbwz1px958d8@207.244.217.165:6712",
-    "http://nliaeayc:rbwz1px958d8@107.172.163.27:6543",
-    "http://nliaeayc:rbwz1px958d8@161.123.152.115:6360",
-    "http://nliaeayc:rbwz1px958d8@23.94.138.75:6349",
-    "http://nliaeayc:rbwz1px958d8@216.10.27.159:6837",
-    "http://nliaeayc:rbwz1px958d8@136.0.207.84:6661",
-    "http://nliaeayc:rbwz1px958d8@64.64.118.149:6732",
-    "http://nliaeayc:rbwz1px958d8@142.147.128.93:6593",
-    "http://nliaeayc:rbwz1px958d8@154.36.110.199:6853",
-]
-
-# تحميل ffmpeg إذا لم يكن موجودًا
 def ensure_ffmpeg():
     ffmpeg_filename = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
     ffmpeg_dir = "ffmpeg_bin"
@@ -69,16 +50,13 @@ def ensure_ffmpeg():
     
     return ffmpeg_path
 
-# تهيئة ffmpeg
 ffmpeg_local_path = ensure_ffmpeg()
 os.environ["PATH"] = f"{os.path.dirname(ffmpeg_local_path)}{os.pathsep}{os.environ.get('PATH', '')}"
 
-# دالة لتنسيق اسم الملف
 def slugify(value):
     value = re.sub(r'[^\w\s-]', '', value, flags=re.UNICODE)
     return value.strip().replace(' ', '_')
 
-# تحديث نسبة التقدم
 def update_progress(task_id, d):
     if d['status'] == 'downloading':
         total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate') or 1
@@ -90,7 +68,6 @@ def update_progress(task_id, d):
                 progress_data[task_id]['progress'] = percentage
                 logging.debug(f"[مهمة {task_id}] التقدم: {percentage:.2f}%")
 
-# العامل المسؤول عن التحميل
 def download_worker(task_id, url, is_mp3):
     try:
         logging.debug(f"[مهمة {task_id}] بدء التحميل")
@@ -98,24 +75,14 @@ def download_worker(task_id, url, is_mp3):
         if not os.path.isfile(cookie_path):
             raise FileNotFoundError('ملف cookies.txt غير موجود.')
 
-        info = None
-        for proxy_url in PROXIES:
-            try:
-                ydl_opts_info = {
-                    'quiet': True,
-                    'no_warnings': True,
-                    'cookiefile': cookie_path,
-                    'nocheckcertificate': True,
-                    'proxy': proxy_url
-                }
-                with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                break
-            except Exception:
-                continue
-
-        if not info:
-            raise Exception("فشل في جلب معلومات الفيديو من جميع البروكسيات.")
+        ydl_opts_info = {
+            'quiet': True,
+            'no_warnings': True,
+            'cookiefile': cookie_path,
+            'nocheckcertificate': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+            info = ydl.extract_info(url, download=False)
 
         title = slugify(info.get('title', f'video_{uuid.uuid4()}'))
         formats = info.get('formats', [])
@@ -128,38 +95,26 @@ def download_worker(task_id, url, is_mp3):
                 format_id = best_format['format_id']
                 ext = best_format.get('ext', 'mp4')
 
-        download_success = False
-        for proxy_url in PROXIES:
-            try:
-                ydl_opts_download = {
-                    'format': format_id,
-                    'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{title}.%(ext)s'),
-                    'noplaylist': True,
-                    'quiet': True,
-                    'no_warnings': True,
-                    'progress_hooks': [lambda d: update_progress(task_id, d)],
-                    'cookiefile': cookie_path,
-                    'nocheckcertificate': True,
-                    'ffmpeg_location': ffmpeg_local_path,
-                    'proxy': proxy_url
-                }
-                if is_mp3:
-                    ydl_opts_download['postprocessors'] = [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }]
+        ydl_opts_download = {
+            'format': format_id,
+            'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{title}.%(ext)s'),
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+            'progress_hooks': [lambda d: update_progress(task_id, d)],
+            'cookiefile': cookie_path,
+            'nocheckcertificate': True,
+            'ffmpeg_location': ffmpeg_local_path,
+        }
+        if is_mp3:
+            ydl_opts_download['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
 
-                with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
-                    ydl.download([url])
-
-                download_success = True
-                break
-            except Exception:
-                continue
-
-        if not download_success:
-            raise Exception("فشل في تحميل الفيديو باستخدام جميع البروكسيات.")
+        with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
+            ydl.download([url])
 
         actual_filename = f'{title}.{ext}'
         full_path = os.path.join(DOWNLOAD_FOLDER, actual_filename)
@@ -178,12 +133,10 @@ def download_worker(task_id, url, is_mp3):
             progress_data[task_id]['progress'] = 0.0
         logging.error(f"[مهمة {task_id}] خطأ: {e}")
 
-# الصفحة الرئيسية
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# بدء عملية التحميل
 @app.route('/download', methods=['POST'])
 def download():
     data = request.get_json()
@@ -199,13 +152,11 @@ def download():
 
     return jsonify({'task_id': task_id})
 
-# جلب حالة التقدم
 @app.route('/progress/<task_id>')
 def get_progress(task_id):
     with progress_lock:
         return jsonify(progress_data.get(task_id, {'error': 'معرف المهمة غير صالح'}))
 
-# تحميل الملف النهائي
 @app.route('/download/<path:filename>')
 def download_file(filename):
     safe_path = safe_join(DOWNLOAD_FOLDER, filename)
@@ -213,7 +164,6 @@ def download_file(filename):
         abort(404)
     return send_from_directory(DOWNLOAD_FOLDER, filename, as_attachment=True)
 
-# تشغيل السيرفر
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     serve(app, host='0.0.0.0', port=port)
