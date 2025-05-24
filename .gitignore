@@ -1,3 +1,6 @@
+# تجاهل ملف ffmpeg الكبير
+ffmpeg_bin/ffmpeg
+
 # تجاهل ملفات التحميل داخل download_temp
 temp/download_temp/*
 !temp/download_temp/.gitkeep
