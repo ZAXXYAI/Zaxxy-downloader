@@ -1,0 +1,3 @@
+# تجاهل ملفات التحميل داخل download_temp
+temp/download_temp/*
+!temp/download_temp/.gitkeep
