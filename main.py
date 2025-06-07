@@ -24,6 +24,7 @@ def sitemap():
 @app.route('/googlef3fcfab0f068f8a8.html')
 def google_verification():
     return send_from_directory('static', 'googlef3fcfab0f068f8a8.html')
+
 # مجلد التحميل المؤقت
 DOWNLOAD_FOLDER = '/tmp/download_temp' if platform.system() != 'Windows' else os.path.join(os.getcwd(), 'downloads_temp')
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
@@ -34,9 +35,6 @@ progress_lock = Lock()
 
 # إعداد السجل (اللوق)
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
-
-# قائمة البروكسيات
-
 
 # تحميل ffmpeg إذا لم يكن موجودًا
 def ensure_ffmpeg():
@@ -90,10 +88,6 @@ def update_progress(task_id, d):
                 logging.debug(f"[مهمة {task_id}] التقدم: {percentage:.2f}%")
 
 # العامل المسؤول عن التحميل
-# حذف هذا السطر:
-# PROXIES = [ ... ] ← لم يعد ضروري
-
-# العامل المسؤول عن التحميل
 def download_worker(task_id, url, is_mp3):
     try:
         logging.debug(f"[مهمة {task_id}] بدء التحميل")
@@ -101,7 +95,7 @@ def download_worker(task_id, url, is_mp3):
         if not os.path.isfile(cookie_path):
             raise FileNotFoundError('ملف cookies.txt غير موجود.')
 
-        # محاولة واحدة فقط بدون بروكسي
+        # الحصول على معلومات الفيديو
         ydl_opts_info = {
             'quiet': True,
             'no_warnings': True,
@@ -126,6 +120,7 @@ def download_worker(task_id, url, is_mp3):
                     format_id = best_format['format_id']
                     ext = best_format.get('ext', 'mp4')
 
+        # إعدادات التحميل
         ydl_opts_download = {
             'format': format_id,
             'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{title}.%(ext)s'),
