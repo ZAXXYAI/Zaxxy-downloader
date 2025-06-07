@@ -36,10 +36,7 @@ progress_lock = Lock()
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
 # قائمة البروكسيات
-PROXIES = [
-    
-    "http://nliaeayc:rbwz1px958d8@154.36.110.199:6853",
-]
+
 
 # تحميل ffmpeg إذا لم يكن موجودًا
 def ensure_ffmpeg():
@@ -93,6 +90,10 @@ def update_progress(task_id, d):
                 logging.debug(f"[مهمة {task_id}] التقدم: {percentage:.2f}%")
 
 # العامل المسؤول عن التحميل
+# حذف هذا السطر:
+# PROXIES = [ ... ] ← لم يعد ضروري
+
+# العامل المسؤول عن التحميل
 def download_worker(task_id, url, is_mp3):
     try:
         logging.debug(f"[مهمة {task_id}] بدء التحميل")
@@ -100,24 +101,15 @@ def download_worker(task_id, url, is_mp3):
         if not os.path.isfile(cookie_path):
             raise FileNotFoundError('ملف cookies.txt غير موجود.')
 
-        info = None
-        for proxy_url in PROXIES:
-            try:
-                ydl_opts_info = {
-                    'quiet': True,
-                    'no_warnings': True,
-                    'cookiefile': cookie_path,
-                    'nocheckcertificate': True,
-                    'proxy': proxy_url
-                }
-                with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                break
-            except Exception:
-                continue
-
-        if not info:
-            raise Exception("فشل في جلب معلومات الفيديو من جميع البروكسيات.")
+        # محاولة واحدة فقط بدون بروكسي
+        ydl_opts_info = {
+            'quiet': True,
+            'no_warnings': True,
+            'cookiefile': cookie_path,
+            'nocheckcertificate': True
+        }
+        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+            info = ydl.extract_info(url, download=False)
 
         title = slugify(info.get('title', f'video_{uuid.uuid4()}'))
         formats = info.get('formats', [])
@@ -134,38 +126,26 @@ def download_worker(task_id, url, is_mp3):
                     format_id = best_format['format_id']
                     ext = best_format.get('ext', 'mp4')
 
-        download_success = False
-        for proxy_url in PROXIES:
-            try:
-                ydl_opts_download = {
-                    'format': format_id,
-                    'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{title}.%(ext)s'),
-                    'noplaylist': True,
-                    'quiet': True,
-                    'no_warnings': True,
-                    'progress_hooks': [lambda d: update_progress(task_id, d)],
-                    'cookiefile': cookie_path,
-                    'nocheckcertificate': True,
-                    'ffmpeg_location': ffmpeg_local_path,
-                    'proxy': proxy_url
-                }
-                if is_mp3:
-                    ydl_opts_download['postprocessors'] = [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }]
+        ydl_opts_download = {
+            'format': format_id,
+            'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{title}.%(ext)s'),
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+            'progress_hooks': [lambda d: update_progress(task_id, d)],
+            'cookiefile': cookie_path,
+            'nocheckcertificate': True,
+            'ffmpeg_location': ffmpeg_local_path
+        }
+        if is_mp3:
+            ydl_opts_download['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
 
-                with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
-                    ydl.download([url])
-
-                download_success = True
-                break
-            except Exception:
-                continue
-
-        if not download_success:
-            raise Exception("فشل في تحميل الفيديو باستخدام جميع البروكسيات.")
+        with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
+            ydl.download([url])
 
         actual_filename = f'{title}.{ext}'
         full_path = os.path.join(DOWNLOAD_FOLDER, actual_filename)
